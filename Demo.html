@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Leap -> Mouse Events Adapter</title>
+<style>
+  body { margin: 0px; }
+  #fingerOverlay {position: fixed; background-color: rgba(255,255,255,0.5); left: 0px; top: 0px; margin: 0px; padding: 0px; }
+</style>
+<script type='text/JavaScript' src='./lib/raphael-min.js'></script>
+<script type='text/JavaScript' src='./lib/jquery-1.8.3.min.js'></script>
+<script>
+var ws;
+
+// Support both the WebSocket and MozWebSocket objects
+if ((typeof(WebSocket) == 'undefined') &&
+    (typeof(MozWebSocket) != 'undefined')) {
+  WebSocket = MozWebSocket;
+}
+
+// function drawFinger(leapPos, context){
+//   context.fillStyle = 'blue';
+//   context.strokeStyle = '#0044FF';
+//   context.beginPath();
+//   context.arc(100,75,50,0,  Math.PI * 2, true );
+//   context.stroke();
+//   console.log("drew finger");
+// }
+
+function scaleValue(val, min, max, rangeMin, rangeMax){
+    if(val < min){ val = min; }
+    if(val > max ){ val = max; }
+
+    return ((val  - min) / (max - min) ) * (rangeMax - rangeMin) + rangeMin;
+};
+
+// function setParticlePosition(particle, leapPos){
+
+//     var x = scaleValue(leapPos.x, minX, maxX, -window.innerWidth, window.innerWidth);
+//     var y = scaleValue(leapPos.y, minY, maxY, -400, window.innerHeight);
+//     var z = scaleValue(leapPos.z, minZ, maxZ, -depth/2, depth/2);
+
+//     particle.position.set(x,y,z);
+// };
+
+var fingerOutlineColor = "#0000FF";
+var fingerOutlineTouchingColor = "#00FF00";
+
+var fingerCenterColor = "#0044FF";
+var fingerCenterTouchingColor = fingerOutlineTouchingColor;
+
+var minX = -250;
+var maxX = 250;
+
+var minX = -200;
+var maxX = 200;
+
+var minY = 20;
+var maxY = 300;
+
+var minZ = -100;
+var maxZ = 200;
+
+var depth = 300;
+
+var motionScale = 2.0;
+
+var minR = 5;
+var maxR = 15;
+
+// values less than this are considered touching
+var touchDepth = 0;
+
+function updateFingers(leapData, fingerOutline, fingerCenter){
+
+  // redo this every time incase of window resize TODO add resize listener
+  var windowWidth =$(window).width();
+  var windowHeight = $(window).height();
+
+  if(leapData.hands && leapData.hands.length > 0){
+    var hand = leapData.hands[0];
+    if(hand.fingers && hand.fingers.length > 0){
+      fingerOutline.show();
+      fingerCenter.show();
+
+      var leapPos = hand.fingers[0].tip.position;
+
+      var x = scaleValue(leapPos[0] * motionScale, minX, maxX, 0, windowWidth);
+      var y = scaleValue(leapPos[1] * motionScale, minY, maxY, windowHeight, 0);
+
+      //var z = scaleValue(leapPos[2] * motionScale, minZ, maxZ, -depth/2, depth/2);
+      var z = leapPos[2];
+      var r = scaleValue(z * motionScale, 0, maxZ, maxR, minR);
+
+      //TODO move this to an animation loop, so hides and shows work
+      fingerOutline.attr("cx", x);
+      fingerOutline.attr("cy", y);
+
+      fingerCenter.attr("cx", x);
+      fingerCenter.attr("cy", y);
+      fingerCenter.attr("r", r);
+
+      if(z < touchDepth){
+        fingerOutline.attr("stroke", fingerOutlineTouchingColor);
+        fingerCenter.attr("fill", fingerCenterTouchingColor);
+      }
+      else{
+        fingerOutline.attr("stroke", fingerOutlineColor);
+        fingerCenter.attr("fill", fingerCenterColor);
+      }
+
+      return;
+    }
+  }
+
+  fingerOutline.hide();
+  fingerCenter.hide();
+}
+
+// Create the socket with event handlers
+function init() {
+
+  //Create and open the socket
+  ws = new WebSocket("ws://localhost:6437/");
+
+  // On successful connection
+  ws.onopen = function(event) {
+    document.getElementById("main").style.visibility = "visible";
+    document.getElementById("connection").innerHTML = "WebSocket connection open!";
+  };
+
+  // On message received
+  ws.onmessage = function(event) {
+    var obj = JSON.parse(event.data);
+    var str = JSON.stringify(obj, undefined, 2);
+    document.getElementById("output").innerHTML = '<pre>' + str + '</pre>';
+
+    updateFingers(obj, fingerOutline, fingerCenter);
+  };
+
+  // On socket close
+  ws.onclose = function(event) {
+    ws = null;
+    document.getElementById("main").style.visibility = "hidden";
+    document.getElementById("connection").innerHTML = "WebSocket connection closed";
+  }
+
+  //On socket error
+  ws.onerror = function(event) {
+    alert("Received error");
+  };
+
+  // drawFinger(null, context);
+
+
+  var width =$(window).width();
+  var height = $(window).height();
+
+  var paper = Raphael('fingerOverlay', width, height);
+  var fingerOutline = paper.circle(100, 75, maxR);
+  fingerOutline.attr("stroke", fingerOutlineColor);
+  var fingerCenter = paper.circle(100, 75, minR);
+  fingerCenter.attr("fill", fingerCenterColor);
+}
+
+</script>
+</head>
+<body onload="init();">
+  <div id='fingerOverlay'></div>
+  <!-- <canvas id='fingerOverlay'  width='100%' height= '100%' ></canvas> -->
+<h1>Leap JavaScript/WebSocket Sample</h1>
+<div id="connection">WebSocket not connected</div>
+<div id="main" style="visibility:hidden">
+  <p>JSON Frame data:</p>
+  <div id="output"></div>
+</div>
+</body>
+</html>
