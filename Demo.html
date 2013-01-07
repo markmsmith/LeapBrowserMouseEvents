@@ -159,7 +159,7 @@ function updateFingers(leapData, fingerOutline, fingerCenter){
       var z = leapPos[2];
       var r = scaleValue(z * motionScale, 0, maxZ, maxR, minR);
 
-      //TODO move this to an animation loop, so hides and shows work
+      //TODO move this to an animation loop, so hides and shows work (unless Leap fixes their socket server)
       fingerOutline.attr("cx", x);
       fingerOutline.attr("cy", y);
 
@@ -211,15 +211,12 @@ function init() {
     ws = null;
     document.getElementById("main").style.visibility = "hidden";
     document.getElementById("connection").innerHTML = "WebSocket connection closed";
-  }
+  };
 
   //On socket error
   ws.onerror = function(event) {
     alert("Received error");
   };
-
-  // drawFinger(null, context);
-
 
   var width =$(window).width();
   var height = $(window).height();
