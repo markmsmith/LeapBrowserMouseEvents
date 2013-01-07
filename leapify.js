@@ -241,6 +241,7 @@ alert("leapify loaded");
         }
     }
 
-    loadScripts(['./lib/raphael-min.js', './lib/jquery-1.8.3.min.js']);
+    loadScripts(['https://raw.github.com/markmsmith/LeapBrowserMouseEvents/master/lib/raphael-min.js',
+                 'https://raw.github.com/markmsmith/LeapBrowserMouseEvents/master//lib/jquery-1.8.3.min.js']);
 
 })();
