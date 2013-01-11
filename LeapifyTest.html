@@ -2,9 +2,16 @@
 <html>
 <head>
 <title>Leapify Test</title>
+</head>
+<body>
+<h1>Leapify Test</h1>
+<div style="width:400px;height:500px;margin:10px;background-color:#FF0000" id='colorToggle'></div>
+<a href="http://www.google.com">Google</a>
+
 <script>
 
-function toggleColor(element){
+function onClick(mouseEvent){
+  var element = this;
 
   if( element.style.backgroundColor == "rgb(255, 0, 0)" ){
     element.style.backgroundColor = "rgb(0, 255, 0)";
@@ -12,13 +19,12 @@ function toggleColor(element){
   else{
     element.style.backgroundColor = "rgb(255, 0, 0)";
   }
+
+  console.log("click event =", mouseEvent);
 };
 
+document.getElementById('colorToggle').addEventListener('click', onClick);
+
 </script>
-</head>
-<body>
-<h1>Leapify Test</h1>
-<div style="width:400px;height:500px;background-color:#FF0000" onclick="toggleColor(this)"></div>
-<a href="http://www.google.com">Google</a>
 </body>
 </html>

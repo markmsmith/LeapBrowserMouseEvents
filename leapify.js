@@ -23,7 +23,7 @@ alert("leapify loaded");
         if(val > max ){ val = max; }
 
         return ((val  - min) / (max - min) ) * (rangeMax - rangeMin) + rangeMin;
-    };
+    }
 
     // function setParticlePosition(particle, leapPos){
 
@@ -40,13 +40,11 @@ alert("leapify loaded");
     var fingerCenterColor = "#0044FF";
     var fingerCenterTouchingColor = fingerOutlineTouchingColor;
 
-    var minX = -250;
-    var maxX = 250;
-
+    // trial and error determined range of values
     var minX = -200;
     var maxX = 200;
 
-    var minY = 20;
+    var minY = 30;
     var maxY = 300;
 
     var minZ = -100;
@@ -62,18 +60,30 @@ alert("leapify loaded");
     // values less than this are considered touching
     var touchDepth = 0;
 
-    // position of where a touch event started (or null if not touching)
+    // position of where a touch event started in screen coordinates (or null if not touching)
     var touchStart = null;
+    // position of where a touch event started in element parent coordinates (or null if not touching)
+    var touchStartClient = null;
+
+    // The element that was touched, if any
     var touchStartEl = null;
 
-    function createMouseEvent(x, y, type){
+    function createMouseEvent(pos, type, detail){
+      var bubbles = true;
+      var cancellable = true
       var mouseEvent = document.createEvent("MouseEvent");
-      mouseEvent.initMouseEvent(type, true, true, window, 1, x, y, x, y, false, false, false, false, 0, null);
+      mouseEvent.initMouseEvent(type, bubbles, cancellable, window,
+                                detail,
+                                0, 0,
+                                pos.x, pos.y,
+                                false, false, false, false, // modifier keys ctrl, alt, shift, meta
+                                0, null);
       return mouseEvent;
     }
 
-    function fireMouseClick(x, y, element){
-      var clickEvent = createMouseEvent(x, y, 'click');
+    function fireMouseClick(pos, element){
+      var numberOfClicks = 1;
+      var clickEvent = createMouseEvent(pos, 'click', numberOfClicks);
       element.dispatchEvent(clickEvent);
 
       // if (event.initMouseEvent) {     // all browsers except IE before version 9
@@ -90,37 +100,66 @@ alert("leapify loaded");
       //         event.srcElement.fireEvent ("onclick", clickEvent);
       //     }
       // }
-    };
+    }
 
-    function fireMouseDown(x, y, element){
-      var downEvent = createMouseEvent(x, y, 'mousedown');
+    function fireMouseDown(pos, element){
+      var buttonPressed = 0; // left
+      var downEvent = createMouseEvent(pos, 'mousedown', buttonPressed);
       element.dispatchEvent(downEvent);
-    };
+    }
 
-    function fireMouseUp(x, y, element){
-      var upEvent = createMouseEvent(x, y, 'mouseup');
+    function fireMouseUp(pos, element){
+      var buttonPressed = 0; // left
+      var upEvent = createMouseEvent(pos, 'mouseup', buttonPressed);
       element.dispatchEvent(upEvent);
-    };
+    }
 
-    function onTouch(x, y){
-      touchStart = {
-              x: x,
-              y: y
-      };
-      touchStartEl = document.elementFromPoint(x, y) || window;
-      fireMouseDown(x, y, touchStartEl);
-    };
+    function fireMouseMove(pos, element){
+      var moveEvent = createMouseEvent(pos, 'mousemove', 0);
+      element.dispatchEvent(moveEvent);
+    }
 
-    function onTouchUp(x, y){
-      var touchEndEl = document.elementFromPoint(x, y) || window;
-      fireMouseUp(x, y, touchEndEl);
+    function onTouch(pos){
+      touchStart = pos;
+      touchStartEl = document.elementFromPoint(pos.x, pos.y)
+      if(touchStartEl){
+        var offset = $(touchStartEl).offset();
+        touchStartClient = {
+            x: touchStart.x - offset.x,
+            y: touchStart.y - offset.y
+        };
+     }
+     else{
+        touchStartEl = window;
+        touchStartClient = touchStart;
+     }
+
+      fireMouseDown(touchStartClient, touchStartEl);
+    }
+
+    function onTouchUp(pos){
+      var touchEndClient;
+      var touchEndEl = document.elementFromPoint(pos.x, pos.y);
+      if(touchEndEl){
+        var offset = $(touchEndEl).offset();
+        touchEndClient = {
+            x: pos.x - offset.x,
+            y: pos.y - offset.y
+        };
+      }
+      else{
+        touchEndEl = window;
+        touchEndClient = pos;
+      }
+
+      fireMouseUp(touchEndClient, touchEndEl);
       if(touchEndEl === touchStartEl){
-        fireMouseClick(x, y, touchStartEl);
+        fireMouseClick(touchEndClient, touchEndEl);
       }
 
       touchStart = null;
       touchStartEl = null;
-    };
+    }
 
     function updateFingers(leapData, fingerOutline, fingerCenter){
 
@@ -138,6 +177,7 @@ alert("leapify loaded");
 
           var x = scaleValue(leapPos[0] * motionScale, minX, maxX, 0, windowWidth);
           var y = scaleValue(leapPos[1] * motionScale, minY, maxY, windowHeight, 0);
+          console.log("leap y =", leapPos[1], "(",minY,"/",maxY,") ", "scaled y =", y, "(",0,"/",windowHeight,")");
 
           //var z = scaleValue(leapPos[2] * motionScale, minZ, maxZ, -depth/2, depth/2);
           var z = leapPos[2];
@@ -151,15 +191,25 @@ alert("leapify loaded");
           fingerCenter.attr("cy", y);
           fingerCenter.attr("r", r);
 
+          var pos = {
+            x: x,
+            y:y
+          };
+
           if(z < touchDepth){
-            fingerOutline.attr("stroke", fingerOutlineTouchingColor);
-            fingerCenter.attr("fill", fingerCenterTouchingColor);
-            onTouch(x, y);
+            if(touchStart){
+                fireMouseMove(pos, window);
+            }
+            else{
+                fingerOutline.attr("stroke", fingerOutlineTouchingColor);
+                fingerCenter.attr("fill", fingerCenterTouchingColor);
+                onTouch(pos);
+            }
           }
           else{
             fingerOutline.attr("stroke", fingerOutlineColor);
             fingerCenter.attr("fill", fingerCenterColor);
-            onTouchUp(x, y);
+            onTouchUp(pos);
           }
 
           return;
@@ -192,11 +242,17 @@ alert("leapify loaded");
          console.log("WebSocket connection open!");
        };
 
+       var processMessage = true;
+
       // On message received
       ws.onmessage = function(event) {
-        var obj = JSON.parse(event.data);
-        var str = JSON.stringify(obj, undefined, 2);
-        updateFingers(obj, fingerOutline, fingerCenter);
+        if(processMessage){
+            var obj = JSON.parse(event.data);
+            var str = JSON.stringify(obj, undefined, 2);
+            updateFingers(obj, fingerOutline, fingerCenter);
+        }
+        // do this so we only process every 2nd message to rate limit a bit
+        processMessage = !processMessage
       };
 
       // On socket close
