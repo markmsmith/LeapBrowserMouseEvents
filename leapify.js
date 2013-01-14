@@ -1,12 +1,4 @@
-if(chrome && chrome.extension){
-  var refreshListener =  function (request, sender, sendResponse) {
-    if (request.refresh) {
-      location.reload();
-    }
-  };
-  chrome.extension.onMessage.addListener(refreshListener);
-}
-
+(function(){
 function leapify(){
 
     var ws;
@@ -441,7 +433,15 @@ function leapify(){
 
 }
 
-if(chrome && chrome.extension){
+if(typeof(chrome) !== "undefined" &&
+   typeof(chrome.extension) !== "undefined"){
+  var refreshListener =  function (request, sender, sendResponse) {
+    if (request.refresh) {
+      location.reload();
+    }
+  };
+  chrome.extension.onMessage.addListener(refreshListener);
+
   chrome.extension.sendMessage({
     checkActivated: true
     },
@@ -455,3 +455,4 @@ if(chrome && chrome.extension){
 else{
   leapify();
 }
+})();
