@@ -1,6 +1,5 @@
 alert("leapify loaded");
 (function(){
-
     var ws;
 
     // Support both the WebSocket and MozWebSocket objects
@@ -57,6 +56,149 @@ alert("leapify loaded");
     var minR = 5;
     var maxR = 15;
 
+    function FingerMarker(paper){
+        this.x = 100;
+        this.y = 75;
+        this.z = 0;
+
+        this.fingerOutline = paper.circle(this.x, this.y, maxR);
+        this.fingerOutline.attr("stroke", fingerOutlineColor);
+
+        this.fingerCenter = paper.circle(this.x, this.y, minR);
+        this.fingerCenter.attr("fill", fingerCenterColor);
+
+        this.touching = false;
+    }
+
+    FingerMarker.prototype.setPosition = function(x, y, z){
+      this.x = x;
+      this.y = y;
+      this.z = z;
+
+      this.fingerOutline.attr("cx", x);
+      this.fingerOutline.attr("cy", y);
+
+      this.fingerCenter.attr("cx", x);
+      this.fingerCenter.attr("cy", y);
+
+      var r = scaleValue(z * motionScale, 0, maxZ, maxR, minR);
+      this.fingerCenter.attr("r", r);
+
+      var touching = z < touchDepth;
+      if(this.touching != touching){
+        this.setTouching(touching);
+      }
+
+      return this.touching;
+    };
+
+    FingerMarker.prototype.updateState = function(){
+
+      var pos = {
+          x: this.x,
+          y: this.y
+      };
+
+      // now touching
+      if(this.touching){
+        if(this.touchStart){
+            // was previously touching
+            fireMouseMove(pos, window);
+        }
+        else{
+            // start of a new touch
+            this.onTouch(pos);
+        }
+      }
+      else if(this.touchStart){
+        // was previously touching
+        this.onTouchUp(pos);
+      }
+    };
+
+    FingerMarker.prototype.setTouching = function(touching) {
+        var newOutlineColor;
+        var newCenterColor;
+        if(touching){
+            newOutlineColor = fingerOutlineTouchingColor;
+            newCenterColor = fingerCenterTouchingColor;
+        }
+        else{
+            newOutlineColor = fingerOutlineColor;
+            newCenterColor = fingerCenterColor;
+        }
+
+        this.fingerOutline.attr("stroke", newOutlineColor);
+        this.fingerCenter.attr("fill", newCenterColor);
+
+        this.touching = touching;
+    };
+
+    FingerMarker.prototype.onTouch = function(pos){
+      this.touchStart = pos;
+      this.touchStartEl = document.elementFromPoint(pos.x, pos.y);
+      if(this.touchStartEl){
+        var offset = $(this.touchStartEl).offset();
+        this.touchStartClient = {
+            x: this.touchStart.x - offset.x,
+            y: this.touchStart.y - offset.y
+        };
+     }
+     else{
+        this.touchStartEl = window;
+        this.touchStartClient = this.touchStart;
+     }
+
+      fireMouseDown(this.touchStartClient, this.touchStartEl);
+    };
+
+    FingerMarker.prototype.clearTouchInfo = function(){
+      this.touchStart = null;
+      this.touchStartEl = null;
+      this.touchStartClient = null;
+    };
+
+    FingerMarker.prototype.onTouchUp = function(pos){
+      var touchEndClient;
+      var touchEndEl = document.elementFromPoint(pos.x, pos.y);
+      if(touchEndEl){
+        var offset = $(touchEndEl).offset();
+        touchEndClient = {
+            x: pos.x - offset.x,
+            y: pos.y - offset.y
+        };
+      }
+      else{
+        touchEndEl = window;
+        touchEndClient = pos;
+      }
+
+      fireMouseUp(touchEndClient, touchEndEl);
+      if(touchEndEl === this.touchStartEl){
+        fireMouseClick(touchEndClient, touchEndEl);
+      }
+
+      this.clearTouchInfo();
+    };
+
+    FingerMarker.prototype.hide = function() {
+        this.fingerOutline.hide();
+        this.fingerCenter.hide();
+    };
+
+    FingerMarker.prototype.show = function() {
+        this.fingerOutline.show();
+        this.fingerCenter.show();
+    };
+
+    FingerMarker.prototype.reset = function(){
+      this.hide();
+      this.setTouching(false);
+      this.clearTouchInfo();
+    };
+
+    var fingerMarkers = [];
+
     // values less than this are considered touching
     var touchDepth = 0;
 
@@ -70,7 +212,7 @@ alert("leapify loaded");
 
     function createMouseEvent(pos, type, detail){
       var bubbles = true;
-      var cancellable = true
+      var cancellable = true;
       var mouseEvent = document.createEvent("MouseEvent");
       mouseEvent.initMouseEvent(type, bubbles, cancellable, window,
                                 detail,
@@ -119,105 +261,88 @@ alert("leapify loaded");
       element.dispatchEvent(moveEvent);
     }
 
-    function onTouch(pos){
-      touchStart = pos;
-      touchStartEl = document.elementFromPoint(pos.x, pos.y)
-      if(touchStartEl){
-        var offset = $(touchStartEl).offset();
-        touchStartClient = {
-            x: touchStart.x - offset.x,
-            y: touchStart.y - offset.y
-        };
-     }
-     else{
-        touchStartEl = window;
-        touchStartClient = touchStart;
-     }
+    function getFingers(leapData){
+        var fingers = [];
+        if(leapData.hands && leapData.hands.length > 0){
+            var hand = leapData.hands[0];
+            if(hand.fingers && hand.fingers.length > 0){
+                return hand.fingers;
+            }
+        }
 
-      fireMouseDown(touchStartClient, touchStartEl);
+        return fingers;
     }
 
-    function onTouchUp(pos){
-      var touchEndClient;
-      var touchEndEl = document.elementFromPoint(pos.x, pos.y);
-      if(touchEndEl){
-        var offset = $(touchEndEl).offset();
-        touchEndClient = {
-            x: pos.x - offset.x,
-            y: pos.y - offset.y
-        };
-      }
-      else{
-        touchEndEl = window;
-        touchEndClient = pos;
-      }
+    var scrollStart = null;
 
-      fireMouseUp(touchEndClient, touchEndEl);
-      if(touchEndEl === touchStartEl){
-        fireMouseClick(touchEndClient, touchEndEl);
-      }
+    function processScrollGesture(fingerMarkers, lastTouch){
+      // check if currenly scrolling
+      if(scrollStart){
 
-      touchStart = null;
-      touchStartEl = null;
-    }
-
-    function updateFingers(leapData, fingerOutline, fingerCenter){
-
-      // redo this every time incase of window resize TODO add resize listener
-      var windowWidth =$(window).width();
-      var windowHeight = $(window).height();
-
-      if(leapData.hands && leapData.hands.length > 0){
-        var hand = leapData.hands[0];
-        if(hand.fingers && hand.fingers.length > 0){
-          fingerOutline.show();
-          fingerCenter.show();
-
-          var leapPos = hand.fingers[0].tip.position;
-
-          var x = scaleValue(leapPos[0] * motionScale, minX, maxX, 0, windowWidth);
-          var y = scaleValue(leapPos[1] * motionScale, minY, maxY, windowHeight, 0);
-          console.log("leap y =", leapPos[1], "(",minY,"/",maxY,") ", "scaled y =", y, "(",0,"/",windowHeight,")");
-
-          //var z = scaleValue(leapPos[2] * motionScale, minZ, maxZ, -depth/2, depth/2);
-          var z = leapPos[2];
-          var r = scaleValue(z * motionScale, 0, maxZ, maxR, minR);
-
-          //TODO move this to an animation loop, so hides and shows work (unless Leap fixes their socket server)
-          fingerOutline.attr("cx", x);
-          fingerOutline.attr("cy", y);
-
-          fingerCenter.attr("cx", x);
-          fingerCenter.attr("cy", y);
-          fingerCenter.attr("r", r);
-
-          var pos = {
-            x: x,
-            y:y
-          };
-
-          if(z < touchDepth){
-            if(touchStart){
-                fireMouseMove(pos, window);
-            }
-            else{
-                fingerOutline.attr("stroke", fingerOutlineTouchingColor);
-                fingerCenter.attr("fill", fingerCenterTouchingColor);
-                onTouch(pos);
-            }
-          }
-          else{
-            fingerOutline.attr("stroke", fingerOutlineColor);
-            fingerCenter.attr("fill", fingerCenterColor);
-            onTouchUp(pos);
-          }
-
+        // check if we still have at least one touch
+        if(lastTouch){
+          // var deltaX = lastTouch.x - scrollStart.x;
+          // var deltaY = lastTouch.y - scrollStart.y;
+          // window.scrollBy(deltaX, deltaY);
+          window.scrollTo(lastTouch.x, lastTouch.y);
           return;
         }
       }
+      else if(lastTouch){
+        // started scrolling
+        scrollStart = {
+          x: lastTouch.x,
+          y: lastTouch.y
+        };
+        return;
+      }
 
-      fingerOutline.hide();
-      fingerCenter.hide();
+      scrollStart = null;
+    }
+
+    function updateFingers(leapData){
+
+      // redo this every time incase of window resize (TODO add resize listener instead)
+      var windowWidth =$(window).width();
+      var windowHeight = $(window).height();
+
+      var fingers = getFingers(leapData);
+      var noFingers = fingers.length;
+      var noMarkers = fingerMarkers.length;
+
+      var lastTouch = null;
+      var m = 0;
+      for(var f=0; f < noFingers && m < noMarkers; f++, m++){
+        var finger = fingers[f];
+        var marker = fingerMarkers[m];
+        marker.show();
+
+        var leapPos = finger.tip.position;
+
+        var x = scaleValue(leapPos[0] * motionScale, minX, maxX, 0, windowWidth);
+        var y = scaleValue(leapPos[1] * motionScale, minY, maxY, windowHeight, 0);
+        //console.log("leap y =", leapPos[1], "(",minY,"/",maxY,") ", "scaled y =", y, "(",0,"/",windowHeight,")");
+
+        //var z = scaleValue(leapPos[2] * motionScale, minZ, maxZ, -depth/2, depth/2);
+        var z = leapPos[2];
+
+        var touching = marker.setPosition(x, y, z);
+        if(touching){
+          lastTouch = marker;
+        }
+      }
+
+      if(noFingers == 1){
+        fingerMarkers[0].updateState();
+      }
+      else if(noFingers > 1){
+        processScrollGesture(fingerMarkers, lastTouch);
+      }
+
+      // reset any unmatched markers
+      for(; m < noMarkers; m++){
+        fingerMarkers[m].reset();
+      }
     }
 
     function main(){
@@ -249,10 +374,10 @@ alert("leapify loaded");
         if(processMessage){
             var obj = JSON.parse(event.data);
             var str = JSON.stringify(obj, undefined, 2);
-            updateFingers(obj, fingerOutline, fingerCenter);
+            updateFingers(obj);
         }
         // do this so we only process every 2nd message to rate limit a bit
-        processMessage = !processMessage
+        processMessage = !processMessage;
       };
 
       // On socket close
@@ -270,10 +395,12 @@ alert("leapify loaded");
       var height = $(window).height();
 
       var paper = Raphael('fingerOverlay', width, height);
-      var fingerOutline = paper.circle(100, 75, maxR);
-      fingerOutline.attr("stroke", fingerOutlineColor);
-      var fingerCenter = paper.circle(100, 75, minR);
-      fingerCenter.attr("fill", fingerCenterColor);
+
+      // support up to 2 fingers for now
+      var noFingers = 2;
+      for(var i=0; i < noFingers; i++){
+        fingerMarkers.push( new FingerMarker(paper) );
+      }
     }
 
     function loadScript(path, onLoad){
