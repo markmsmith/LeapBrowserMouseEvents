@@ -4,7 +4,13 @@ LeapBrowserMouseEvents
 Library to allow using leap to generate mouse move, click and scroll events.
 
 Currently relies on version 0.6.6 of the SDK and the built-in Websocket server.
-Update to the 0.7.x SDK is planned, but I intend to turn this into a browser extension first.
+Update to the 0.7.x SDK is planned in the new few weeks.
+
+To use the Chrome browser extension
+-----------------------------------
+Go to menu -> Tools -> Extensions
+Drag Leapify.crx on to the window and install.
+On a tab you wish to control using the leap, click the leap icon beside the omnibox to toggle it on.
 
 To use the bookmarklet
 ----------------------
@@ -15,7 +21,9 @@ Create a bookmark with the following address:
 
 Now when you click the bookmark, the current page will popup an alert to let you know leapify has been loaded and you can use 1-finger to click and drag on things.  Two fingers cause the page to scroll.
 
-The circles that appear represent up to two finger tips.  The inner circle represents the depth of your finger tip, the larger the radius, the further forward your finger is.
+Description
+-----------
+The blue circles that appear represent your finger tips (up to two).  The inner circle represents the depth of your finger tip, the larger the radius, the further forward your finger is.
 When your finger is far enough forward to be considered touching the page, the inner circle will be as large as the outer one and will turn green.
 The idea is that the outer circle vs in the inner circle gives you feedback on if you're close enough or not for a touch.
 

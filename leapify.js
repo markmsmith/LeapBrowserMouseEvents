@@ -1,5 +1,14 @@
-alert("leapify loaded");
-(function(){
+if(chrome && chrome.extension){
+  var refreshListener =  function (request, sender, sendResponse) {
+    if (request.refresh) {
+      location.reload();
+    }
+  };
+  chrome.extension.onMessage.addListener(refreshListener);
+}
+
+function leapify(){
+
     var ws;
 
     // Support both the WebSocket and MozWebSocket objects
@@ -346,28 +355,29 @@ alert("leapify loaded");
     }
 
     function main(){
-        var fingerOverlay = document.createElement('div');
-        fingerOverlay.id = 'fingerOverlay';
-        var overlayStyle = fingerOverlay.style;
-       overlayStyle.backgroundColor = 'rgba(255,255,255,0.0)';
-       overlayStyle.pointerEvents = 'none';
-       overlayStyle.position = 'fixed';
-       overlayStyle.left = '0px';
-       overlayStyle.top = '0px';
-       overlayStyle.margin = '0px';
-       overlayStyle.padding = '0px';
+      var fingerOverlay = document.createElement('div');
+      fingerOverlay.id = 'fingerOverlay';
+      var overlayStyle = fingerOverlay.style;
+      overlayStyle.backgroundColor = 'rgba(255,255,255,0.0)';
+      overlayStyle.pointerEvents = 'none';
+      overlayStyle.position = 'fixed';
+      overlayStyle.left = '0px';
+      overlayStyle.top = '0px';
+      overlayStyle.margin = '0px';
+      overlayStyle.padding = '0px';
+      overlayStyle.zIndex = 99999;
 
-       document.body.appendChild(fingerOverlay);
+      document.body.appendChild(fingerOverlay);
 
        //Create and open the socket
-       ws = new WebSocket("ws://localhost:6437/");
+      ws = new WebSocket("ws://localhost:6437/");
 
        // On successful connection
-       ws.onopen = function(event) {
-         console.log("WebSocket connection open!");
-       };
+      ws.onopen = function(event) {
+        console.log("WebSocket connection open!");
+      };
 
-       var processMessage = true;
+      var processMessage = true;
 
       // On message received
       ws.onmessage = function(event) {
@@ -401,6 +411,8 @@ alert("leapify loaded");
       for(var i=0; i < noFingers; i++){
         fingerMarkers.push( new FingerMarker(paper) );
       }
+
+      console.log("leapify loaded");
     }
 
     function loadScript(path, onLoad){
@@ -427,4 +439,19 @@ alert("leapify loaded");
     loadScripts(['https://raw.github.com/markmsmith/LeapBrowserMouseEvents/master/lib/raphael-min.js',
                  'https://raw.github.com/markmsmith/LeapBrowserMouseEvents/master//lib/jquery-1.8.3.min.js']);
 
-})();
+}
+
+if(chrome && chrome.extension){
+  chrome.extension.sendMessage({
+    checkActivated: true
+    },
+    function (response) {
+      if( response.isActivated ) {
+        leapify();
+      }
+    }
+  );
+}
+else{
+  leapify();
+}
